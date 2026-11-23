@@ -8,16 +8,14 @@
 //  改动：Observation 环境注入改为 Beans 的 @EnvironmentObject；当前用户 ID
 //  直接取 AuthStore（MeloX 走 LibraryStore / accountProfile 接口）；文案改为
 //  中文字面量；头像与封面复用 Beans 的 BeansAvatarView / CoverImage。
+//  导航（2.0.19）：会话跳转用闭包式 NavigationLink，不用 value 路由加
+//  navigationDestination。后者在真机上点开会话立即被弹回列表（2.0.18 实测），
+//  闭包式与聚合页进私信列表的入口同款、已验证可用，不要改回去。
 //  简化：MeloX 会话页会额外请求歌曲详情补全私信卡片封面，这里保留该逻辑；
 //  分享资源到私信 / 动态（NeteaseShareSheet）不在本次移植范围内。
 //
 
 import SwiftUI
-
-enum NetEaseMessageRoute: Hashable {
-    case contacts
-    case conversation(NetEaseMessageContact)
-}
 
 /// 「我的」页进入的网易云服务聚合页：私信 / 云盘 / 收藏专辑 / 关注歌手。
 struct NetEaseHubView: View {
@@ -102,7 +100,16 @@ struct NetEasePrivateMessagesView: View {
                 List {
                     ForEach(conversations) { conversation in
                         let contact = conversation.participant(currentUserID: currentUserID)
-                        NavigationLink(value: NetEaseMessageRoute.conversation(contact)) {
+                        NavigationLink {
+                            NetEaseConversationView(contact: contact) {
+                                // 只有历史接口成功返回后才清除本地角标。首次历史
+                                // 请求会同时在网易云服务端完成已读上报。
+                                clearUnreadCount(for: contact.id)
+                            }
+                            .onDisappear {
+                                Task { await load() }
+                            }
+                        } label: {
                             conversationRow(conversation, contact: contact)
                         }
                     }
@@ -115,25 +122,12 @@ struct NetEasePrivateMessagesView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink(value: NetEaseMessageRoute.contacts) {
+                NavigationLink {
+                    NetEaseMessageContactsView()
+                } label: {
                     Image(systemName: "square.and.pencil")
                 }
                 .accessibilityLabel("发起私信")
-            }
-        }
-        .navigationDestination(for: NetEaseMessageRoute.self) { route in
-            switch route {
-            case .contacts:
-                NetEaseMessageContactsView()
-            case .conversation(let contact):
-                NetEaseConversationView(contact: contact) {
-                    // 只有历史接口成功返回后才清除本地角标。首次历史
-                    // 请求会同时在网易云服务端完成已读上报。
-                    clearUnreadCount(for: contact.id)
-                }
-                .onDisappear {
-                    Task { await load() }
-                }
             }
         }
         .task { await load() }
@@ -465,7 +459,9 @@ struct NetEaseMessageContactsView: View {
                 EmptyStateView(icon: "person.2.slash", text: searchQuery.isEmpty ? "暂无可私信的联系人" : "未找到联系人")
             } else {
                 List(filteredContacts) { contact in
-                    NavigationLink(value: NetEaseMessageRoute.conversation(contact)) {
+                    NavigationLink {
+                        NetEaseConversationView(contact: contact)
+                    } label: {
                         HStack(spacing: 12) {
                             BeansAvatarView(remoteURL: contact.avatarURL, size: 48)
                                 .clipShape(Circle())

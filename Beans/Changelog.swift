@@ -77,6 +77,15 @@ enum ChangelogStore {
     /// 否则更新说明弹窗在远端拉取失败时展示的仍是旧版本条目（logs.first）。
     static let logs: [VersionLog] = [
         VersionLog(
+            id: "2.0.19",
+            version: "2.0.19",
+            title: "私信会话打不开修复",
+            features: [],
+            fixes: [
+                "修复网易云私信点开会话立刻退回列表：会话跳转改用与网易云服务入口相同的导航方式"
+            ]
+        ),
+        VersionLog(
             id: "2.0.18",
             version: "2.0.18",
             title: "汽水扫码放行等待",
